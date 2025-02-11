@@ -1,0 +1,68 @@
+{% extends 'gestion/base.html' %}
+{% block title %}Gestión de Pagos{% endblock %}
+{% block content %}
+
+<div class="container">
+    <h2 class="mt-4">Pagos del Pedido #{{ pedido.id }}</h2>
+    
+    <h4>Total Cobrado: ${{ pedido.total_cobrado }}</h4>
+    <h4>Total Pagado: ${{ total_pagado }}</h4>
+    <h4>Restante: ${{ restante }}</h4>
+
+    <div class="row">
+        <div class="col-6">
+            <h3>Pagos Recibidos</h3>
+            <table class="table table-bordered mt-3">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Valor</th>
+                        <th>Banco</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pago in pagos %}
+                        <tr>
+                            <td>{{ pago.fecha|date:"d/m/Y H:i" }}</td>
+                            <td>${{ pago.valor }}</td>
+                            <td>{{ pago.banco }}</td>
+                            <td>
+                                <form method="post" action="{% url 'gestionar_pagos' pedido.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="pago_id" value="{{ pago.id }}">
+                                    <button type="submit" class="btn btn-danger btn-sm">X</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No hay pagos registrados.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="col-6">
+            <h3>Nuevo Pago</h3>
+            <form method="post" action="{% url 'gestionar_pagos' pedido.id %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label>Valor</label>
+                    <input type="number" name="valor" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label>Banco</label>
+                    <input type="text" name="banco" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Agregar Pago</button>
+            </form>
+        </div>
+    </div>
+    
+<hr>
+
+    <a href="{% url 'listar_pedidos' %}" class="btn btn-secondary mt-3">Volver</a>
+</div>
+
+{% endblock %}

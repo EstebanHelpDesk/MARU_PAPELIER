@@ -1,0 +1,29 @@
+{% extends 'gestion/base.html' %}
+{% block title %}Ingresos Últimos 6 Meses{% endblock %}
+{% block content %}
+<h2>Ingresos Últimos 6 Meses</h2>
+<table class="table table-bordered">
+    <thead class="table-dark">
+        <tr>
+            <th>Mes</th>
+            <th>Total Ventas</th>
+            <th>Total Costos</th>
+            <th>Ganancia</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ingreso in ingresos_por_mes %}
+        <tr>
+            <td>{{ ingreso.mes_nombre }}</td>  
+            <td>${{ ingreso.total_ventas|floatformat:2 }}</td>
+            <td>${{ ingreso.total_costos|floatformat:2 }}</td>
+            <td>${{ ingreso.ganancia|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4" class="text-center">No hay ingresos registrados.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

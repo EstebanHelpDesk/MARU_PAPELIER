@@ -1,0 +1,15 @@
+{% extends 'gestion/base.html' %}
+{% block title %}Agregar Insumo{% endblock %}
+{% block content %}
+<body>
+<div class="container mt-5">
+  <h2 class="mb-4">Editar Insumo: {{ insumo.nombre }}</h2>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-success">Guardar Insumo</button>
+  <a href="{% url 'listar_insumos' %}" class="btn btn-secondary">Volver</a>
+</form>
+</div>
+</body>
+{% endblock %}

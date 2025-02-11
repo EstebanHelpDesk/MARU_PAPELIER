@@ -1,0 +1,26 @@
+{% extends 'gestion/base.html' %}
+{% block title %}Stock Valorizado{% endblock %}
+{% block content %}
+<h2>Stock Valorizado</h2>
+<table class="table table-bordered">
+    <thead class="table-dark">
+        <tr>
+            <th>Insumo</th>
+            <th>Stock</th>
+            <th>Precio Unitario</th>
+            <th>Valor Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for insumo in insumos %}
+        <tr>
+            <td>{{ insumo.nombre }}</td>
+            <td>{{ insumo.stock|floatformat:2 }}</td>
+            <td>${{ insumo.costo_unitario|floatformat:2 }}</td>
+            <td>${{ insumo.valor_total|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<h3>Total Stock Valorizado: ${{ total_valorizado|floatformat:2 }}</h3>
+{% endblock %}

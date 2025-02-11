@@ -1,0 +1,108 @@
+{% extends 'gestion/base.html' %}
+{% load custom_filters %}
+{% block title %}Editar Producto{% endblock %}
+{% block content %}
+
+<script>
+    let insumosSeleccionados = {};
+    {% for insumo_id, cantidad in insumos_json.items %}
+        insumosSeleccionados["{{ insumo_id }}"] = "{{ cantidad }}";
+    {% endfor %}
+
+    function toggleInsumo(insumoId, nombre, cantidad = '') {
+        let container = document.getElementById("insumos-container");
+
+        if (document.getElementById("insumo-" + insumoId)) {
+            document.getElementById("insumo-" + insumoId).remove();
+            delete insumosSeleccionados[insumoId];
+            document.getElementById("insumo-checkbox-" + insumoId).checked = false;
+        } else {
+            insumosSeleccionados[insumoId] = cantidad;
+            let nuevoInsumo = document.createElement("div");
+            nuevoInsumo.id = "insumo-" + insumoId;
+            nuevoInsumo.classList.add("d-flex", "gap-2", "mb-2", "align-items-center");
+
+            nuevoInsumo.innerHTML = `
+                <input type="hidden" name="insumo" value="${insumoId}">
+                <span>${nombre}</span>
+                <input type="number" name="cantidad" class="form-control" placeholder="Cantidad usada" step="0.01" required value="${cantidad}">
+                <button type="button" class="btn btn-danger btn-sm" onclick="removeInsumo('${insumoId}')">X</button>
+            `;
+
+            container.appendChild(nuevoInsumo);
+            document.getElementById("insumo-checkbox-" + insumoId).checked = true;
+        }
+    }
+
+    function removeInsumo(insumoId) {
+        document.getElementById("insumo-" + insumoId).remove();
+        delete insumosSeleccionados[insumoId];
+        document.getElementById("insumo-checkbox-" + insumoId).checked = false;
+    }
+
+    function filtrarInsumos() {
+        let filtro = document.getElementById("buscador-insumos").value.toLowerCase();
+        let insumos = document.querySelectorAll(".form-check");
+
+        insumos.forEach(insumo => {
+            let texto = insumo.innerText.toLowerCase();
+            insumo.style.display = texto.includes(filtro) ? "block" : "none";
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        Object.keys(insumosSeleccionados).forEach(insumoId => {
+            let insumoElement = document.querySelector(`#insumo-checkbox-${insumoId}`);
+            if (insumoElement) {
+                let insumoLabel = insumoElement.nextElementSibling.innerText;
+                let cantidad = insumosSeleccionados[insumoId];
+                toggleInsumo(insumoId, insumoLabel, cantidad);
+            }
+        });
+    });
+</script>
+
+<body>
+    <div class="container">
+        <h2 class="mt-4">Editar Producto</h2>
+        <form method="post">
+            {% csrf_token %}
+            <div class="row">
+                <!-- Datos generales del producto -->
+                <div class="col-md-4">
+                    <h4>Datos del Producto</h4>
+                    <div class="mb-3">
+                        {{ producto_form.as_p }}
+                    </div>
+                </div>
+
+                <!-- Selección de Insumos con buscador -->
+                <div class="col-md-4">
+                    <h4>Seleccionar Insumos</h4>
+                    <input type="text" id="buscador-insumos" class="form-control mb-3" placeholder="Buscar insumo..." onkeyup="filtrarInsumos()">
+
+                    <div class="mb-3">
+                        {% for insumo in insumos %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="insumo-checkbox-{{ insumo.id }}" 
+                                       onclick="toggleInsumo('{{ insumo.id }}', '{{ insumo.nombre }}', '{{ insumos_json|get_item:insumo.id }}')"
+                                       {% if insumo.id in insumos_json %}checked{% endif %}>
+                                <label class="form-check-label" for="insumo-checkbox-{{ insumo.id }}">{{ insumo.nombre }}</label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Insumos y Cantidades Seleccionados -->
+                <div class="col-md-4">
+                    <h4>Insumos Utilizados</h4>
+                    <div id="insumos-container" class="border p-3"></div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary mt-3">Guardar Cambios</button>
+            <a href="{% url 'listar_productos' %}" class="btn btn-secondary mt-3">Volver a la lista</a>
+        </form>
+    </div>
+</body>
+{% endblock %}

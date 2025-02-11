@@ -1,0 +1,93 @@
+{% extends 'gestion/base.html' %}
+{% block title %}Agregar Producto{% endblock %}
+{% block content %}
+
+<script>
+    let insumosSeleccionados = {};
+
+    function toggleInsumo(insumoId, nombre) {
+        let container = document.getElementById("insumos-container");
+
+        if (insumosSeleccionados[insumoId]) {
+            delete insumosSeleccionados[insumoId];
+            document.getElementById("insumo-" + insumoId).remove();
+        } else {
+            insumosSeleccionados[insumoId] = true;
+            let nuevoInsumo = document.createElement("div");
+            nuevoInsumo.id = "insumo-" + insumoId;
+            nuevoInsumo.classList.add("d-flex", "gap-2", "mb-2", "align-items-center");
+
+            nuevoInsumo.innerHTML = `
+                <input type="hidden" name="insumo" value="${insumoId}">
+                <span>${nombre}</span>
+                <input type="number" name="cantidad" class="form-control" placeholder="Cantidad usada" step="0.01" required>
+                <button type="button" class="btn btn-danger btn-sm" onclick="removeInsumo('${insumoId}')">X</button>
+            `;
+
+            container.appendChild(nuevoInsumo);
+        }
+    }
+
+    function removeInsumo(insumoId) {
+        delete insumosSeleccionados[insumoId];
+        document.getElementById("insumo-" + insumoId).remove();
+    }
+
+    function filtrarInsumos() {
+        let filtro = document.getElementById("buscador-insumos").value.toLowerCase();
+        let insumos = document.querySelectorAll(".form-check");
+
+        insumos.forEach(insumo => {
+            let texto = insumo.innerText.toLowerCase();
+            insumo.style.display = texto.includes(filtro) ? "block" : "none";
+        });
+    }
+</script>
+
+<body>
+    <div class="container">
+        <h2 class="mt-4">Agregar Producto</h2>
+        <form method="post">
+            {% csrf_token %}
+            <div class="row">
+                <!-- Datos generales del producto -->
+                <div class="col-md-4">
+                    <h4>Datos del Producto</h4>
+                    <div class="mb-3">
+                        {{ producto_form.as_p }}
+                    </div>
+                </div>
+
+                <!-- Selección de Insumos con buscador -->
+                <div class="col-md-4">
+                    <h4>Seleccionar Insumos</h4>
+                    <input type="text" id="buscador-insumos" class="form-control mb-3" placeholder="Buscar insumo..." onkeyup="filtrarInsumos()">
+                    
+                    {% if insumos %}
+                        <div class="mb-3">
+                            {% for insumo in insumos %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="insumo{{ insumo.id }}" 
+                                           onclick="toggleInsumo('{{ insumo.id }}', '{{ insumo.nombre }}')">
+                                    <label class="form-check-label" for="insumo{{ insumo.id }}">{{ insumo.nombre }}</label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No hay insumos disponibles. Agrega insumos primero.</p>
+                    {% endif %}
+                </div>
+                
+                <!-- Insumos y Cantidades Seleccionados -->
+                <div class="col-md-4">
+                    <h4>Insumos Utilizados</h4>
+                    <div id="insumos-container" class="border p-3"></div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary mt-3">Guardar</button>
+            <a href="{% url 'listar_productos' %}" class="btn btn-secondary mt-3">Volver a la lista</a>
+        </form>
+    </div>
+</body>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends 'gestion/base.html' %}
+{% block title %}Editar Pedido{% endblock %}
+{% block content %}
+
+<script>
+    let productosDisponibles = [];
+    let productosSeleccionados = new Set();
+
+    document.addEventListener("DOMContentLoaded", function () {
+        fetch("/gestion/obtener_productos/")
+        .then(response => response.json())
+        .then(data => {
+            if (data.productos) {
+                productosDisponibles = data.productos;
+                inicializarProductos();
+            } else {
+                productosDisponibles = [];
+            }
+        })
+        .catch(error => {
+            console.error("Error cargando productos:", error);
+            productosDisponibles = [];
+        });
+    });
+
+    function inicializarProductos() {
+        document.querySelectorAll(".product-item select").forEach(select => {
+            let selectedValue = select.value;
+            if (selectedValue) {
+                productosSeleccionados.add(parseInt(selectedValue));
+            }
+        });
+
+        actualizarListaProductos();
+    }
+
+    function agregarProducto() {
+        let container = document.getElementById("productos-container");
+
+        if (productosDisponibles.length === 0 || productosSeleccionados.size === productosDisponibles.length) {
+            alert("No hay más productos disponibles para agregar.");
+            return;
+        }
+
+        let nuevoProducto = document.createElement("div");
+        nuevoProducto.classList.add("input-group", "mb-2", "product-item");
+
+        let select = document.createElement("select");
+        select.name = "producto";
+        select.classList.add("form-control");
+        select.required = true;
+        select.onchange = function () { marcarSeleccionado(this); };
+
+        let optionDefault = document.createElement("option");
+        optionDefault.value = "";
+        optionDefault.textContent = "Seleccione un producto";
+        select.appendChild(optionDefault);
+
+        productosDisponibles.forEach(prod => {
+            if (!productosSeleccionados.has(prod.id)) {
+                let option = document.createElement("option");
+                option.value = prod.id;
+                option.textContent = prod.nombre;
+                select.appendChild(option);
+            }
+        });
+
+        let inputCantidad = document.createElement("input");
+        inputCantidad.type = "number";
+        inputCantidad.name = "cantidad";
+        inputCantidad.classList.add("form-control");
+        inputCantidad.placeholder = "Cantidad";
+        inputCantidad.required = true;
+
+        let botonEliminar = document.createElement("button");
+        botonEliminar.type = "button";
+        botonEliminar.classList.add("btn", "btn-danger", "btn-sm");
+        botonEliminar.textContent = "X";
+        botonEliminar.onclick = function () { eliminarProducto(nuevoProducto, select.value); };
+
+        nuevoProducto.appendChild(select);
+        nuevoProducto.appendChild(inputCantidad);
+        nuevoProducto.appendChild(botonEliminar);
+
+        container.appendChild(nuevoProducto);
+    }
+
+    function marcarSeleccionado(selectElement) {
+        let productoId = selectElement.value;
+
+        if (productoId) {
+            productosSeleccionados.add(parseInt(productoId));
+        }
+        
+        actualizarListaProductos();
+    }
+
+    function eliminarProducto(productoDiv, productoId) {
+        if (productoId) {
+            productosSeleccionados.delete(parseInt(productoId));
+        }
+
+        productoDiv.remove();
+        actualizarListaProductos();
+    }
+
+    function actualizarListaProductos() {
+        document.querySelectorAll("select[name='producto']").forEach(select => {
+            let selectedValue = select.value;
+            select.innerHTML = '<option value="">Seleccione un producto</option>';
+
+            productosDisponibles.forEach(prod => {
+                if (!productosSeleccionados.has(prod.id) || prod.id == selectedValue) {
+                    let option = document.createElement("option");
+                    option.value = prod.id;
+                    option.textContent = prod.nombre;
+                    if (prod.id == selectedValue) option.selected = true;
+                    select.appendChild(option);
+                }
+            });
+        });
+    }
+</script>
+
+<div class="container">
+    <h2 class="mt-4">Editar Pedido</h2>
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="mb-3">
+            <label>Nombre del Cliente</label>
+            <input type="text" name="cliente_nombre" class="form-control" value="{{ pedido.cliente_nombre }}" required>
+        </div>
+        <div class="mb-3">
+            <label>Teléfono</label>
+            <input type="text" name="cliente_telefono" class="form-control" value="{{ pedido.cliente_telefono }}" required>
+        </div>
+        <div class="mb-3">
+            <label>Email</label>
+            <input type="email" name="cliente_email" class="form-control" value="{{ pedido.cliente_email }}">
+        </div>
+        <div class="mb-3">
+            <label>Instagram</label>
+            <input type="text" name="cliente_instagram" class="form-control" value="{{ pedido.cliente_instagram }}">
+        </div>
+        
+        <div class="mb-3">
+            <label>Estado del Pedido</label>
+            <select name="estado" class="form-control">
+                {% for estado in pedido.ESTADOS %}
+                    <option value="{{ estado.0 }}" {% if pedido.estado == estado.0 %}selected{% endif %}>{{ estado.1 }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <h4>Productos en el Pedido</h4>
+        <div id="productos-container">
+            {% for ped_prod in pedido_productos %}
+            <div class="input-group mb-2 product-item">
+                <select name="producto" class="form-control">
+                    {% for producto in productos %}
+                    <option value="{{ producto.id }}" {% if producto.id == ped_prod.producto.id %}selected{% endif %}>
+                        {{ producto.nombre }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <input type="number" name="cantidad" class="form-control" value="{{ ped_prod.cantidad }}">
+                <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto(this.parentElement, '{{ ped_prod.producto.id }}')">Eliminar</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-secondary" onclick="agregarProducto()">Agregar Producto</button>
+        <hr>
+        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+        <a href="{% url 'listar_pedidos' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>
+
+{% endblock %}

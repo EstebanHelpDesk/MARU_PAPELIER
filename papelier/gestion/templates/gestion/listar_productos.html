@@ -1,0 +1,49 @@
+{% extends 'gestion/base.html' %}
+{% block title %}Lista de Productos{% endblock %}
+{% block content %}
+<body>
+    <div class="container">
+        <h2 class="mt-4">Lista de Productos</h2>
+        <a href="{% url 'agregar_producto' %}" class="btn btn-success mb-3">Agregar Producto</a>
+        
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Insumos</th>
+                    <th>Costo Producción</th>
+                    <th>Precio Venta</th>
+                    <th>Margen de Ganancia</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for producto in productos %}
+                    <tr>
+                        <td>{{ producto.nombre }}</td>
+                        <td>
+                            {% for pi in producto.productoinsumo_set.all %}
+                                {{ pi.insumo.nombre }} (x{{ pi.cantidad }})<br>
+                            {% empty %}
+                                <span class="text-muted">Sin insumos</span>
+                            {% endfor %}
+                        </td>
+                        <td>${{ producto.costo_total }}</td>
+                        <td>${{ producto.precio_venta }}</td>
+                        <td>{{ producto.margen_ganancia }}%</td>
+                        <td>
+                            <a href="{% url 'editar_producto' producto.id %}" class="btn btn-warning btn-sm">Editar</a>
+                            <a href="{% url 'eliminar_producto' producto.id %}" class="btn btn-danger btn-sm">Eliminar</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center">No hay productos registrados.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+            
+        </table>
+    </div>
+</body>
+
+{% endblock %}

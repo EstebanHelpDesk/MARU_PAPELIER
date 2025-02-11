@@ -1,0 +1,32 @@
+{% extends 'gestion/base.html' %}
+{% block title %}Editar Insumo{% endblock %}
+{% block content %}
+
+<body>
+  <div class="container mt-5">
+    <h2 class="mb-4">Editar Insumo: {{ insumo.nombre }}</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label for="id_nombre" class="form-label">Nombre</label>
+        {{ form.nombre}}
+      </div>
+      <div class="mb-3">
+        <label for="id_cantidad_total" class="form-label">Cantidad Total</label>
+        {{ form.cantidad_total }}
+      </div>
+      <div class="mb-3">
+        <label for="id_precio_total" class="form-label">Precio Total</label>
+        {{ form.precio_total }}
+      </div>
+      <div class="mb-3">
+        <label for="id_stock" class="form-label">Stock Actual</label>
+        {{ form.stock }}
+      </div>
+      <button type="submit" class="btn btn-success">Guardar Cambios</button>
+      <a href="{% url 'listar_insumos' %}" class="btn btn-secondary">Volver</a>
+    </form>
+  </div>
+</body>
+
+{% endblock %}
