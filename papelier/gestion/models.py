@@ -9,6 +9,10 @@ class Insumo(models.Model):
     precio_total = models.DecimalField(max_digits=10, decimal_places=2, help_text="Precio total pagado por la cantidad recibida")
     costo_unitario = models.DecimalField(max_digits=10, decimal_places=4, editable=False, default=0)
 
+    class Meta:
+        verbose_name_plural = "Insumos"
+        ordering = ['nombre']
+
     def save(self, *args, **kwargs):
         if self.cantidad_total > 0:
             self.costo_unitario = self.precio_total / self.cantidad_total
@@ -22,12 +26,17 @@ class Insumo(models.Model):
     def __str__(self):
         return f"{self.nombre} - {self.cantidad_total} unidades"
 
+
 class Producto(models.Model):
     nombre = models.CharField(max_length=100)
     insumos = models.ManyToManyField(Insumo, through='ProductoInsumo')
     margen_ganancia = models.DecimalField(max_digits=5, decimal_places=2, help_text="Porcentaje de ganancia")
     costo_total = models.DecimalField(max_digits=10, decimal_places=2, default=0, editable=False)
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2, default=0, editable=False)
+
+    class Meta:
+        verbose_name_plural = "Productos"
+        ordering = ['nombre']
 
     def calcular_precios(self):
         # Acceder correctamente a los insumos a través de ProductoInsumo
@@ -44,6 +53,7 @@ class ProductoInsumo(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
     insumo = models.ForeignKey(Insumo, on_delete=models.CASCADE)
     cantidad = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+
 
 class Pedido(models.Model):
     ESTADOS = (
