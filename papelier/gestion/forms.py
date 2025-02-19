@@ -12,6 +12,13 @@ class InsumoForm(forms.ModelForm):
             'precio_total': forms.NumberInput(attrs={'class': 'form-control'}),
             'stock': forms.NumberInput(attrs={'class': 'form-control'}),
         }
+        
+    def clean_nombre(self):
+        nombre = self.cleaned_data.get('nombre')
+        if self.instance.pk and self.instance.nombre == "Tiempo de Produccion" and nombre != "Tiempo de Produccion":
+            raise forms.ValidationError("No se puede cambiar el nombre de 'Tiempo de Producción'.")
+        return nombre
+
 
 class ProductoForm(forms.ModelForm):
     class Meta:

@@ -49,6 +49,7 @@ def agregar_insumo(request):
 
 def editar_insumo(request, insumo_id):
     insumo = get_object_or_404(Insumo, id=insumo_id)
+    
     if request.method == "POST":
         form = InsumoForm(request.POST, instance=insumo)
         if form.is_valid():
