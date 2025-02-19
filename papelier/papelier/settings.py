@@ -26,7 +26,7 @@ SECRET_KEY = 'dsdkljsdl4523v-1#g8!yxzrdohlif=y+&*chtñ*x5*ñsdoalkx*wc'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['192.168.0.108','localhost']
 
 
 # Application definition

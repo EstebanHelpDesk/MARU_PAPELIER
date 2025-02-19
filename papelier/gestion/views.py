@@ -486,7 +486,7 @@ def generar_pdf_pedido(request, pedido_id):
 
 
 def informe_stock_valorizado(request):
-    insumos = Insumo.objects.exclude(nombre__iexact="tiempo de produccion")  # Excluir "tiempo de producción"
+    insumos = Insumo.objects.exclude(nombre__iexact="Tiempo de Produccion")  # Excluir "tiempo de producción"
     #excluir los que tienen cantidad=0
     insumos = insumos.exclude(stock=0)
     
