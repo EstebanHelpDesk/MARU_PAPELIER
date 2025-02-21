@@ -16,8 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path,include
+from django.shortcuts import redirect
+
+# Función de redirección
+def redirigir_a_gestion(request):
+    return redirect('/gestion/')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('gestion/', include('gestion.urls')),
+    path('', redirigir_a_gestion, name='home_redirect'),  # Redirigir al usuario a /gestion/
+    path('gestion/', include('gestion.urls')),  # Incluir las URLs de tu aplicación 'gestion'
 ]
