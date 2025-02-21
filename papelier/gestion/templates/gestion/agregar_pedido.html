@@ -1,8 +1,7 @@
 {% extends 'gestion/base.html' %}
 {% block title %}Agregar Pedido{% endblock %}
 {% block content %}
-
-<script>
+    <script>
     let productosDisponibles = [];
     let productosSeleccionados = new Set();
 
@@ -108,36 +107,38 @@
             });
         });
     }
-</script>
-
-<div class="container">
-    <h2 class="mt-4">Agregar Pedido</h2>
-    <form method="post">
-        {% csrf_token %}
-
-        <div class="mb-3">
-            <label>Nombre del Cliente</label>
-            <input type="text" name="cliente_nombre" class="form-control" required>
+    </script>
+    <div class="container">
+        <h2 class="mt-4">Agregar Pedido</h2>
+        <form method="post">
+            {% csrf_token %}
+            <div  class="row">
+            <div class="col-4">
+                <div class="mb-3">
+                    <label>Nombre del Cliente</label>
+                    <input type="text" name="cliente_nombre" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label>Teléfono</label>
+                    <input type="text" name="cliente_telefono" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label>Email</label>
+                    <input type="email" name="cliente_email" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label>Instagram</label>
+                    <input type="text" name="cliente_instagram" class="form-control">
+                </div>
+            </div>
+            <div class="col-8">
+                <h4>Productos en el Pedido</h4>
+                <div id="productos-container"></div>
+                <button type="button" class="btn btn-secondary" onclick="agregarProducto()">Agregar Producto</button>
+                <hr>
+                <button type="submit" class="btn btn-primary">Guardar Pedido</button>
+            </div>
         </div>
-        <div class="mb-3">
-            <label>Teléfono</label>
-            <input type="text" name="cliente_telefono" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label>Email</label>
-            <input type="email" name="cliente_email" class="form-control">
-        </div>
-        <div class="mb-3">
-            <label>Instagram</label>
-            <input type="text" name="cliente_instagram" class="form-control">
-        </div>
-
-        <h4>Productos en el Pedido</h4>
-        <div id="productos-container"></div>
-        <button type="button" class="btn btn-secondary" onclick="agregarProducto()">Agregar Producto</button>
-        <hr>
-        <button type="submit" class="btn btn-primary">Guardar Pedido</button>
-    </form>
-</div>
-
+        </form>
+    </div>
 {% endblock %}

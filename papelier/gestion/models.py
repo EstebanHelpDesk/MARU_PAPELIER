@@ -17,7 +17,7 @@ class Insumo(models.Model):
         if self.cantidad_total > 0:
             self.costo_unitario = self.precio_total / self.cantidad_total
             # Si es una nueva instancia, inicializa el stock con la cantidad_total.
-            if not self.pk:
+            if not self.pk and (self.stock is None or self.stock == ''):
                 self.stock = self.cantidad_total
         else:
             self.costo_unitario = 0
@@ -58,27 +58,25 @@ class ProductoInsumo(models.Model):
 class Pedido(models.Model):
     ESTADOS = (
         ('NUEVO', 'Nuevo'),
-        ('EN_PRODUCCION', 'En Producción'),
+        ('PRODUCCION', 'En Producción'),
         ('TERMINADO', 'Terminado'),
         ('ENTREGADO', 'Entregado'),
         ('CANCELADO', 'Cancelado'),
     )
 
-    # Datos del cliente
     cliente_nombre = models.CharField(max_length=100)
     cliente_telefono = models.CharField(max_length=20)
     cliente_email = models.EmailField(blank=True, null=True)
     cliente_instagram = models.CharField(max_length=100, blank=True, null=True)
 
-    # Relación con productos
     productos = models.ManyToManyField('Producto', through='PedidoProducto')
 
-    # Cálculos financieros
     total_costo = models.DecimalField(max_digits=10, decimal_places=2, default=0, editable=False)
     total_cobrado = models.DecimalField(max_digits=10, decimal_places=2, default=0, editable=False)
+    ajuste = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # Nuevo campo para ajuste
+
     ganancia = models.DecimalField(max_digits=10, decimal_places=2, default=0, editable=False)
 
-    # Estado del pedido
     estado = models.CharField(max_length=20, choices=ESTADOS, default='NUEVO')
     fecha = models.DateTimeField(auto_now_add=True)
 
@@ -92,13 +90,17 @@ class Pedido(models.Model):
         self.ganancia = total_cobrado - total_costo
         self.save()
 
+    def calcular_total_a_pagar(self):
+        """Calcula el total a pagar sumando el ajuste al total cobrado."""
+        return self.total_cobrado + self.ajuste
+
     def calcular_total_pagado(self):
         """Suma todos los pagos realizados al pedido."""
         return self.pagos.aggregate(total=Sum("valor"))["total"] or 0
 
     def calcular_restante(self):
         """Calcula cuánto falta por pagar en el pedido."""
-        return self.total_cobrado - self.calcular_total_pagado()
+        return self.calcular_total_a_pagar() - self.calcular_total_pagado()
 
     def estado_pago(self):
         """Devuelve un estado amigable del pago."""
@@ -109,6 +111,7 @@ class Pedido(models.Model):
 
     def __str__(self):
         return f"Pedido {self.id} - {self.cliente_nombre}"
+
 
 
 class PedidoProducto(models.Model):

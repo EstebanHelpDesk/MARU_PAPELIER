@@ -153,6 +153,7 @@
             </select>
         </div>
 
+
         <h4>Productos en el Pedido</h4>
         <div id="productos-container">
             {% for ped_prod in pedido_productos %}
@@ -168,6 +169,10 @@
                 <button type="button" class="btn btn-danger btn-sm" onclick="eliminarProducto(this.parentElement, '{{ ped_prod.producto.id }}')">Eliminar</button>
             </div>
             {% endfor %}
+        </div>
+        <div class="mb-3">
+            <label>Ajuste</label>
+            <input type="number" name="ajuste" class="form-control" value="{{ pedido.ajuste }}" step="0.01">
         </div>
         <button type="button" class="btn btn-secondary" onclick="agregarProducto()">Agregar Producto</button>
         <hr>

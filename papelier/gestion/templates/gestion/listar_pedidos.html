@@ -3,26 +3,32 @@
 {% block content %}
 
 <div class="container">
-    <h2 class="mt-4">Lista de Pedidos</h2>
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        <h2>Lista de Pedidos</h2>
+        <a href="{% url 'agregar_pedido' %}" class="btn btn-primary">➕ Agregar Pedido</a>
+    </div>
 
-    <form method="GET">
-        <label>
-            <input type="checkbox" name="mostrar_entregados" {% if mostrar_entregados %}checked{% endif %} onchange="this.form.submit()">
-            Mostrar ENTREGADOS y CANCELADOS
-        </label>
-        <label class="ms-3">
-            <input type="checkbox" name="mostrar_antiguos" {% if mostrar_antiguos %}checked{% endif %} onchange="this.form.submit()">
-            Mostrar pedidos hasta 1 año
-        </label>
+    <form method="GET" class="my-3">
+        <div class="d-flex gap-3">
+            <label>
+                <input type="checkbox" name="mostrar_entregados" {% if mostrar_entregados %}checked{% endif %} onchange="this.form.submit()">
+                Mostrar ENTREGADOS y CANCELADOS
+            </label>
+            <label>
+                <input type="checkbox" name="mostrar_antiguos" {% if mostrar_antiguos %}checked{% endif %} onchange="this.form.submit()">
+                Mostrar pedidos hasta 1 año
+            </label>
+        </div>
     </form>
-    <a href="{% url 'agregar_pedido' %}" class="btn btn-primary mt-3">Nuevo Pedido</a>
 
-    <table class="table table-bordered mt-3">
-        <thead>
+    <table class="table table-striped table-hover border mt-3">
+        <thead class="table-dark">
             <tr>
                 <th>Cliente</th>
                 <th>Productos</th>
-                <th>Total Cobrado</th>
+                <th>Valor Snapshot</th>
+                <th>Ajuste</th>
+                <th>Total a Pagar</th>
                 <th>Pagos</th>
                 <th>Estado</th>
                 <th>Fecha</th>
@@ -38,12 +44,25 @@
                             {{ ped_prod.producto.nombre }} (x{{ ped_prod.cantidad }})<br>
                         {% endfor %}
                     </td>
-                    <td>${{ pedido.total_cobrado }}</td>
+                    <td>${{ pedido.total_cobrado|floatformat:2 }}</td>
+                    
+                    <!-- Campo Ajuste -->
+                    <td>
+                        <input type="number" class="form-control ajuste-pedido" data-pedido-id="{{ pedido.id }}" 
+                               value="{{ pedido.ajuste }}" step="0.01">
+                    </td>
+
+                    <!-- Campo Total a Pagar (Ahora Editable) -->
+                    <td>
+                        <input type="number" class="form-control total-a-pagar" data-pedido-id="{{ pedido.id }}" 
+                               value="{{ pedido.calcular_total_a_pagar }}" step="0.01">
+                    </td>
+
                     <td>
                         <span class="{% if pedido.calcular_restante > 0 %}text-danger{% else %}text-success{% endif %}">
                             {{ pedido.estado_pago }}
                         </span>
-                        <a href="{% url 'gestionar_pagos' pedido.id %}" class="btn btn-success btn-sm">Pagos</a>
+                        <a href="{% url 'gestionar_pagos' pedido.id %}" class="btn btn-success btn-sm">💳 Pagos</a>
                     </td>
                     <td>
                         <select class="form-select estado-pedido" data-pedido-id="{{ pedido.id }}">
@@ -56,26 +75,71 @@
                     </td>
                     <td>{{ pedido.fecha|date:"d/m/Y" }}</td>
                     <td>
-                        <a href="{% url 'editar_pedido' pedido.id %}" class="btn btn-warning btn-sm">Editar</a>
-                        <a href="{% url 'eliminar_pedido' pedido.id %}" class="btn btn-danger btn-sm">Eliminar</a>
-                        <a href="{% url 'generar_pdf_pedido' pedido.id %}" class="btn btn-info btn-sm">
-                            🖨 PDF
-                        </a>
-                        
+                        <a href="{% url 'editar_pedido' pedido.id %}" class="btn btn-warning btn-sm">✏ Editar</a>
+                        <a href="{% url 'eliminar_pedido' pedido.id %}" class="btn btn-danger btn-sm">🗑 Eliminar</a>
+                        <a href="{% url 'generar_pdf_pedido' pedido.id %}" class="btn btn-info btn-sm">🖨 PDF</a>
                     </td>
                 </tr>
             {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center">No hay pedidos registrados.</td>
+                    <td colspan="9" class="text-center">No hay pedidos registrados.</td>
                 </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // 🔹 Modificar Ajuste → Actualiza Total a Pagar
+        document.querySelectorAll(".ajuste-pedido").forEach(input => {
+            input.addEventListener("input", function () {
+                let pedidoId = this.getAttribute("data-pedido-id");
+                let ajusteValor = parseFloat(this.value) || 0;
+                let snapshotValor = parseFloat(document.querySelector(`[data-pedido-id='${pedidoId}']`).closest("tr").querySelector("td:nth-child(3)").textContent.replace("$", "")) || 0;
+                
+                let totalPagarInput = document.querySelector(`.total-a-pagar[data-pedido-id='${pedidoId}']`);
+                totalPagarInput.value = (snapshotValor + ajusteValor).toFixed(2);
 
+                actualizarAjuste(pedidoId, ajusteValor);
+            });
+        });
 
+        // 🔹 Modificar Total a Pagar → Ajusta el Valor del Ajuste
+        document.querySelectorAll(".total-a-pagar").forEach(input => {
+            input.addEventListener("input", function () {
+                let pedidoId = this.getAttribute("data-pedido-id");
+                let totalPagarValor = parseFloat(this.value) || 0;
+                let snapshotValor = parseFloat(document.querySelector(`[data-pedido-id='${pedidoId}']`).closest("tr").querySelector("td:nth-child(3)").textContent.replace("$", "")) || 0;
+                
+                let ajusteInput = document.querySelector(`.ajuste-pedido[data-pedido-id='${pedidoId}']`);
+                let ajusteCalculado = (totalPagarValor - snapshotValor).toFixed(2);
+                ajusteInput.value = ajusteCalculado;
 
+                actualizarAjuste(pedidoId, ajusteCalculado);
+            });
+        });
 
+        // 🔹 Función para actualizar el ajuste en el servidor
+        function actualizarAjuste(pedidoId, ajusteValor) {
+            fetch(`/gestion/pedidos/${pedidoId}/actualizar_ajuste/`, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: `ajuste=${encodeURIComponent(ajusteValor)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.mensaje) {
+                    console.log("Ajuste guardado:", data.ajuste);
+                } else {
+                    console.error("Error al guardar ajuste");
+                }
+            });
+        }
+    });
+</script>
 
 {% endblock %}

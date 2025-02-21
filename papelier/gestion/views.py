@@ -1,34 +1,34 @@
-from django.db.models import Sum
+from django.db.models import Sum, F, ExpressionWrapper, FloatField
 from django.shortcuts import render, redirect, get_object_or_404
-from .models import Insumo, Producto, Pedido, ProductoInsumo, PedidoProducto, PagoPedido
-from .forms import InsumoForm, ProductoForm, PedidoForm
-from django.db.models import F, ExpressionWrapper, FloatField
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse
 from django.contrib import messages
 from django.utils.timezone import now
-from datetime import timedelta
-from django.http import FileResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import io
-from datetime import datetime
-from django.db.models import Sum
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 import calendar
+import json
+from .models import Insumo, Producto, Pedido, PedidoProducto, PagoPedido
+from .forms import InsumoForm, ProductoForm, PedidoForm,PagoPedidoForm
+from .models import ProductoInsumo
+
+
+
+
 
 def home(request):
     ultimos_pedidos = Pedido.objects.exclude(estado="ENTREGADO").order_by("-fecha")[:15]
     insumos_bajos = Insumo.objects.annotate(
-        threshold=ExpressionWrapper(
-            F("cantidad_total") * 0.1, output_field=FloatField()
-        )
+        threshold=ExpressionWrapper(F("cantidad_total") * 0.1, output_field=FloatField())
     ).filter(stock__lt=F("threshold"))
+    
     return render(
-        request,
-        "gestion/home.html",
-        {"ultimos_pedidos": ultimos_pedidos, "insumos_bajos": insumos_bajos},
+        request, "gestion/home.html",
+        {"ultimos_pedidos": ultimos_pedidos, "insumos_bajos": insumos_bajos}
     )
-
 
 def listar_insumos(request):
     insumos = Insumo.objects.all()
@@ -285,6 +285,11 @@ def agregar_pedido(request):
 def editar_pedido(request, pedido_id):
     pedido = get_object_or_404(Pedido, id=pedido_id)
 
+    # ❌ Solo se puede editar si está en PRODUCCION
+    if pedido.estado != "PRODUCCION":
+        messages.warning(request, "Solo se pueden editar pedidos en estado PRODUCCIÓN.")
+        return redirect("listar_pedidos")
+
     if request.method == "POST":
         print("POST recibido para editar:", request.POST)
         form = PedidoForm(request.POST, instance=pedido)
@@ -292,67 +297,47 @@ def editar_pedido(request, pedido_id):
         if form.is_valid():
             form.save()
 
-            pedido.pedidoproducto_set.all().delete()  # Eliminar productos existentes
-
+            # ✅ No permitir agregar nuevos productos, solo modificar cantidades o eliminar
             producto_ids = request.POST.getlist("producto")
             cantidades = request.POST.getlist("cantidad")
 
             if not producto_ids or not cantidades:
-                messages.error(
-                    request, "Debe seleccionar al menos un producto y cantidad."
-                )
-                return render(
-                    request,
-                    "gestion/editar_pedido.html",
-                    {
-                        "form": form,
-                        "pedido": pedido,
-                        "pedido_productos": pedido.pedidoproducto_set.all(),
-                        "productos": Producto.objects.all(),
-                    },
-                )
+                messages.error(request, "Debe haber al menos un producto con cantidad mayor a 0.")
+                return render(request, "gestion/editar_pedido.html", {
+                    "form": form, 
+                    "pedido": pedido, 
+                    "pedido_productos": pedido.pedidoproducto_set.all(), 
+                    "productos": Producto.objects.all(),
+                })
 
             productos_actualizados = []
-            for producto_id, cantidad in zip(producto_ids, cantidades):
-                if producto_id and cantidad and int(cantidad) > 0:
-                    try:
-                        producto = Producto.objects.get(id=producto_id)
-                        PedidoProducto.objects.create(
-                            pedido=pedido, producto=producto, cantidad=int(cantidad)
-                        )
-                        productos_actualizados.append(producto)
-                    except Producto.DoesNotExist:
-                        messages.error(
-                            request, f"Producto con ID {producto_id} no encontrado."
-                        )
-                        return render(
-                            request,
-                            "gestion/editar_pedido.html",
-                            {
-                                "form": form,
-                                "pedido": pedido,
-                                "pedido_productos": pedido.pedidoproducto_set.all(),
-                                "productos": Producto.objects.all(),
-                            },
-                        )
+            for ped_prod in pedido.pedidoproducto_set.all():
+                if str(ped_prod.producto.id) in producto_ids:
+                    index = producto_ids.index(str(ped_prod.producto.id))
+                    nueva_cantidad = int(cantidades[index])
+
+                    if nueva_cantidad > 0:
+                        ped_prod.cantidad = nueva_cantidad
+                        ped_prod.save()
+                        productos_actualizados.append(ped_prod.producto)
+                    else:
+                        # ✅ Si la cantidad es 0, eliminar el producto del pedido
+                        ped_prod.delete()
 
             if productos_actualizados:
                 pedido.calcular_totales()
                 messages.success(request, "Pedido actualizado correctamente.")
                 return redirect("listar_pedidos")
             else:
-                pedido.estado = "CANCELADO"  # Si no hay productos, cancelar pedido
+                # ✅ Si no quedan productos, marcar como CANCELADO
+                pedido.estado = "CANCELADO"
                 pedido.save()
-                messages.warning(
-                    request, "El pedido ha sido cancelado porque no tiene productos."
-                )
+                messages.warning(request, "El pedido ha sido cancelado porque no tiene productos.")
                 return redirect("listar_pedidos")
 
         else:
             print("Errores del formulario:", form.errors)
-            messages.error(
-                request, "Error en el formulario. Revisa los datos ingresados."
-            )
+            messages.error(request, "Error en el formulario. Revisa los datos ingresados.")
 
     else:
         form = PedidoForm(instance=pedido)
@@ -370,6 +355,7 @@ def editar_pedido(request, pedido_id):
     )
 
 
+
 def eliminar_pedido(request, pedido_id):
     pedido = get_object_or_404(Pedido, id=pedido_id)
     if request.method == "POST":
@@ -379,42 +365,6 @@ def eliminar_pedido(request, pedido_id):
     return render(request, "gestion/eliminar_pedido.html", {"pedido": pedido})
 
 
-@csrf_exempt
-def cambiar_estado_pedido(request, pedido_id, nuevo_estado):
-    pedido = get_object_or_404(Pedido, id=pedido_id)
-    pedido.estado = nuevo_estado
-    pedido.save()
-
-    stock_insuficiente = []
-
-    # Verificar y ajustar stock si el pedido se TERMINA
-    if nuevo_estado == "TERMINADO":
-        for ped_prod in pedido.pedidoproducto_set.all():
-            for prod_insumo in ped_prod.producto.productoinsumo_set.all():
-                insumo = prod_insumo.insumo
-                cantidad_necesaria = prod_insumo.cantidad * ped_prod.cantidad
-
-                if insumo.stock < cantidad_necesaria:
-                    stock_insuficiente.append(
-                        f"{insumo.nombre} (Faltan {cantidad_necesaria - insumo.stock})"
-                    )
-                    insumo.stock = 0  # Evitar negativos
-                else:
-                    insumo.stock -= cantidad_necesaria
-
-                insumo.save()
-
-    if stock_insuficiente:
-        messages.error(
-            request, "El stock es insuficiente para: " + ", ".join(stock_insuficiente)
-        )
-
-    messages.success(request, "Estado del pedido actualizado correctamente.")
-    return redirect("listar_pedidos")
-
-
-
-
 def listar_pedidos(request):
     mostrar_entregados = request.GET.get("mostrar_entregados") == "on"
     mostrar_antiguos = request.GET.get("mostrar_antiguos") == "on"
@@ -422,16 +372,15 @@ def listar_pedidos(request):
     fecha_limite = now() - timedelta(days=90)
     fecha_limite_antiguos = now() - timedelta(days=365)
 
-    estados_base = ["NUEVO", "PENDIENTE", "EN PRODUCCION", "TERMINADO"]
+    estados_base = ["NUEVO", "PRODUCCION", "TERMINADO"]
     if mostrar_entregados:
         estados_base += ["ENTREGADO", "CANCELADO"]
 
-    if mostrar_antiguos:
-        pedidos = Pedido.objects.filter(estado__in=estados_base, fecha__gte=fecha_limite_antiguos).order_by("fecha")
-    else:
-        pedidos = Pedido.objects.filter(estado__in=estados_base, fecha__gte=fecha_limite).order_by("fecha")
+    pedidos = Pedido.objects.filter(estado__in=estados_base, fecha__gte=fecha_limite if not mostrar_antiguos else fecha_limite_antiguos).order_by("fecha")
 
-    return render(request, "gestion/listar_pedidos.html", {"pedidos": pedidos, "mostrar_entregados": mostrar_entregados, "mostrar_antiguos": mostrar_antiguos})
+    return render(request, "gestion/listar_pedidos.html", {
+        "pedidos": pedidos, "mostrar_entregados": mostrar_entregados, "mostrar_antiguos": mostrar_antiguos
+    })
 
 
 def pagos_pedido(request, pedido_id):
@@ -484,49 +433,89 @@ def generar_pdf_pedido(request, pedido_id):
 
     return FileResponse(buffer, as_attachment=True, filename=f"Pedido_{pedido.id}.pdf")
 
+def cambiar_estado_pedido(request, pedido_id, nuevo_estado):
+    pedido = get_object_or_404(Pedido, id=pedido_id)
+
+    # 🚫 No permitir cambios si el pedido está CANCELADO
+    if pedido.estado == "CANCELADO":
+        return JsonResponse({"error": "No se puede revertir un pedido CANCELADO."}, status=400)
+
+    estado_anterior = pedido.estado
+
+    # 🚫 No permitir cambios desde ENTREGADO excepto a TERMINADO
+    if estado_anterior == "ENTREGADO" and nuevo_estado != "TERMINADO":
+        return JsonResponse({"error": "Solo se puede volver a TERMINADO desde ENTREGADO."}, status=400)
+
+    pedido.estado = nuevo_estado
+    pedido.save()
+
+    # ✅ Si pasa de TERMINADO → PRODUCCIÓN, devolver stock
+    if estado_anterior == "TERMINADO" and nuevo_estado == "PRODUCCION":
+        for ped_prod in pedido.pedidoproducto_set.all():
+            for prod_insumo in ped_prod.producto.productoinsumo_set.all():
+                insumo = prod_insumo.insumo
+                cantidad_devuelta = prod_insumo.cantidad * ped_prod.cantidad
+                insumo.stock += cantidad_devuelta
+                insumo.save()
+        messages.info(request, "Stock devuelto al cambiar el estado a PRODUCCIÓN.")
+
+    # ✅ Si pasa de PRODUCCIÓN → TERMINADO o PRODUCCIÓN → ENTREGADO, descontar stock
+    elif estado_anterior == "PRODUCCION" and nuevo_estado in ["TERMINADO", "ENTREGADO"]:
+        stock_insuficiente = []
+        for ped_prod in pedido.pedidoproducto_set.all():
+            for prod_insumo in ped_prod.producto.productoinsumo_set.all():
+                insumo = prod_insumo.insumo
+                cantidad_necesaria = prod_insumo.cantidad * ped_prod.cantidad
+
+                if insumo.stock < cantidad_necesaria:
+                    stock_insuficiente.append(
+                        f"{insumo.nombre} (Faltan {cantidad_necesaria - insumo.stock})"
+                    )
+                    insumo.stock = 0  # Evitar negativos
+                else:
+                    insumo.stock -= cantidad_necesaria
+                insumo.save()
+
+        if stock_insuficiente:
+            messages.error(request, "Stock insuficiente para: " + ", ".join(stock_insuficiente))
+
+    messages.success(request, "Estado del pedido actualizado correctamente.")
+    return redirect("listar_pedidos")
 
 
-def informe_stock_valorizado(request):
-    insumos = Insumo.objects.exclude(nombre__iexact="Tiempo de Produccion")  # Excluir "tiempo de producción"
-    #excluir los que tienen cantidad=0
-    insumos = insumos.exclude(stock=0)
-    
-    # Agregar el cálculo del valor total de cada insumo
-    for insumo in insumos:
-        insumo.valor_total = insumo.stock * insumo.costo_unitario
+@csrf_exempt
+def actualizar_ajuste(request, pedido_id):
+    pedido = get_object_or_404(Pedido, id=pedido_id)
 
-    # Calcular el total valorizado
-    total_valorizado = sum(insumo.valor_total for insumo in insumos)
+    if request.method == "POST":
+        ajuste = request.POST.get("ajuste", "").strip()
+        print("Ajuste recibido:", ajuste)
 
-    return render(request, "informes/stock_valorizado.html", {
-        "insumos": insumos,
-        "total_valorizado": total_valorizado,
-    })
+        if ajuste == "":
+            ajuste_decimal = Decimal("0")
+        else:
+            try:
+                ajuste_decimal = Decimal(ajuste.replace(",", "."))
+            except (ValueError, InvalidOperation):
+                return JsonResponse({"error": "Valor de ajuste no válido"}, status=400)
+
+        print("Ajuste decimal guardado:", ajuste_decimal)
+
+        pedido.ajuste = ajuste_decimal
+        pedido.save()
+
+        return JsonResponse({
+            "mensaje": "Ajuste actualizado correctamente",
+            "ajuste": str(pedido.ajuste),
+            "total_a_pagar": float(pedido.calcular_total_a_pagar()),
+            "restante": float(pedido.calcular_restante())
+        })
+
+    return JsonResponse({"error": "Método no permitido"}, status=405)
 
 
 
-def informe_ventas(request):
-    fecha_inicio = request.GET.get("fecha_inicio", "")
-    fecha_fin = request.GET.get("fecha_fin", "")
-    pedidos = Pedido.objects.all()
 
-    if fecha_inicio and fecha_fin:
-        fecha_inicio = datetime.strptime(fecha_inicio, "%Y-%m-%d")
-        fecha_fin = datetime.strptime(fecha_fin, "%Y-%m-%d")
-        #los pedidos tienen fecha y hora y los parametros solo fecha
-        #por lo que se debe agregar un dia a la fecha fin para que tome los pedidos del dia, quitar la hora de los pedidos a la hora de realizar el filtro
-        pedidos = pedidos.filter(fecha__date__range=(fecha_inicio.date(), fecha_fin.date()))
-
-
-    # Agrupar por estado y sumar total_cobrado
-    total_por_estado = pedidos.values("estado").annotate(total=Sum("total_cobrado"))
-
-    return render(request, "informes/ventas.html", {
-        "pedidos": pedidos,
-        "total_por_estado": total_por_estado,
-        "fecha_inicio": fecha_inicio.strftime("%Y-%m-%d") if fecha_inicio else "",
-        "fecha_fin": fecha_fin.strftime("%Y-%m-%d") if fecha_fin else "",
-    })
 
 
 def informe_ingresos(request):
@@ -554,6 +543,78 @@ def informe_ingresos(request):
         {"ingresos_por_mes": ingresos_por_mes},
     )
 
+# ✅ INFORMES
+def informe_stock_valorizado(request):
+    insumos = Insumo.objects.exclude(nombre__iexact="Tiempo de Produccion").exclude(stock=0)
+
+    for insumo in insumos:
+        insumo.valor_total = insumo.stock * insumo.costo_unitario
+
+    total_valorizado = sum(insumo.valor_total for insumo in insumos)
+
+    return render(request, "informes/stock_valorizado.html", {
+        "insumos": insumos, "total_valorizado": total_valorizado,
+    })
+
+def informe_ventas(request):
+    fecha_inicio = request.GET.get("fecha_inicio", "")
+    fecha_fin = request.GET.get("fecha_fin", "")
+    pedidos = Pedido.objects.all()
+
+    if fecha_inicio and fecha_fin:
+        fecha_inicio = datetime.strptime(fecha_inicio, "%Y-%m-%d")
+        fecha_fin = datetime.strptime(fecha_fin, "%Y-%m-%d") + timedelta(days=1)
+        pedidos = pedidos.filter(fecha__date__range=(fecha_inicio.date(), fecha_fin.date()))
+
+    total_por_estado = pedidos.values("estado").annotate(total=Sum("total_cobrado"))
+
+    return render(request, "informes/ventas.html", {
+        "pedidos": pedidos, "total_por_estado": total_por_estado,
+        "fecha_inicio": fecha_inicio.strftime("%Y-%m-%d") if fecha_inicio else "",
+        "fecha_fin": fecha_fin.strftime("%Y-%m-%d") if fecha_fin else "",
+    })
+
+
+def debug_pedidos(request):
+    pedidos = Pedido.objects.order_by('-fecha')[:10]
+    pedido_id = request.GET.get("pedido_id")
+
+    pedido_seleccionado = None
+    productos = []
+    pagos = []
+    total_pagado = 0
+    restante = 0
+    modelos = {}
+
+    if pedido_id:
+        pedido_seleccionado = get_object_or_404(Pedido, id=pedido_id)
+        productos = PedidoProducto.objects.filter(pedido=pedido_seleccionado)
+        pagos = PagoPedido.objects.filter(pedido=pedido_seleccionado)
+        total_pagado = pagos.aggregate(total=Sum("valor"))["total"] or 0
+        restante = pedido_seleccionado.total_cobrado - total_pagado
+
+        def serializar_objeto(obj):
+            """ Convierte objetos Django en un diccionario con valores legibles """
+            return {
+                field.name: getattr(obj, field.name)
+                if not isinstance(getattr(obj, field.name), (datetime, Decimal))
+                else str(getattr(obj, field.name))  # Convertir datetime y Decimal
+                for field in obj._meta.fields
+            }
+
+        # Serializar datos de forma dinámica
+        modelos["Pedido"] = serializar_objeto(pedido_seleccionado)
+        modelos["Productos"] = [serializar_objeto(p) for p in productos]
+        modelos["Pagos"] = [serializar_objeto(p) for p in pagos]
+
+    return render(request, "gestion/debug_pedidos.html", {
+        "pedidos": pedidos,
+        "pedido_seleccionado": pedido_seleccionado,
+        "modelos": modelos,
+        "total_pagado": total_pagado,
+        "restante": restante
+    })
+
 
 def gestionar_pagos(request, pedido_id):
     pedido = get_object_or_404(Pedido, id=pedido_id)
@@ -572,26 +633,9 @@ def gestionar_pagos(request, pedido_id):
         except ValueError:
             return JsonResponse({"error": "El valor del pago no es válido."}, status=400)
 
-    elif request.method == "DELETE":
-        try:
-            data = json.loads(request.body)
-            pago_id = data.get("pago_id")
-            pago = get_object_or_404(PagoPedido, id=pago_id, pedido=pedido)
-            pago.delete()
-            return JsonResponse({"mensaje": "Pago eliminado correctamente."})
-        except json.JSONDecodeError:
-            return JsonResponse({"error": "Solicitud incorrecta."}, status=400)
-
     total_pagado = pedido.pagos.aggregate(total=Sum("valor"))["total"] or 0
     restante = pedido.total_cobrado - total_pagado
 
-    return render(
-        request,
-        "gestion/gestionar_pagos.html",
-        {
-            "pedido": pedido,
-            "total_pagado": total_pagado,
-            "restante": restante,
-            "pagos": pedido.pagos.all(),
-        },
-    )
+    return render(request, "gestion/gestionar_pagos.html", {
+        "pedido": pedido, "total_pagado": total_pagado, "restante": restante, "pagos": pedido.pagos.all(),
+    })

@@ -1,0 +1,51 @@
+# Ignorar entorno virtual
+ambiente/
+venv/
+env/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ignorar archivos de configuración sensibles
+.env
+*.env
+*.log
+*.sqlite3
+db.sqlite3
+
+# Ignorar archivos de compilación de Python
+*.egg-info/
+*.egg
+*.manifest
+*.spec
+
+# Ignorar migraciones innecesarias
+*/migrations/*.py
+!*/migrations/__init__.py
+
+# Ignorar archivos de VS Code
+.vscode/
+*.code-workspace
+
+# Ignorar archivos de caché y temporales
+*.bak
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Ignorar archivos de caché de Django
+*.log
+staticfiles/
+media/
+
+# Ignorar archivos de cache de coverage y testing
+.coverage
+htmlcov/
+nosetests.xml
+test-results.xml
+pytest_cache/
